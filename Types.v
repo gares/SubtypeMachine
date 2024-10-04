@@ -1,5 +1,6 @@
 Require Import PeanoNat.
 Require Import Coq.Arith.Wf_nat.
+From HB Require Import structures.
 From mathcomp Require Import all_ssreflect ssreflect.div.
 
 Set Bullet Behavior "Strict Subproofs".
@@ -57,12 +58,8 @@ Section IntersectionTypes.
       elim => //=; by [ move => ? -> ? -> || move => ? ? -> ].
     Qed.
 
-    Definition IT_eqMixin := PcanEqMixin pcan_ITtree.
-    Canonical IT_eqType := EqType IT IT_eqMixin.
-    Definition IT_choiceMixin := PcanChoiceMixin pcan_ITtree.
-    Canonical IT_choiceType := ChoiceType IT IT_choiceMixin.
-    Definition IT_countMixin := PcanCountMixin pcan_ITtree.
-    Canonical IT_countType := CountType IT IT_countMixin.
+    HB.instance Definition _ := Countable.copy IT (pcan_type pcan_ITtree).
+
   End ITMathcompInstances.
 
   (** Check if a type is Omega or an Arrow ending in Omega **)
@@ -100,18 +97,18 @@ Section IntersectionTypes.
     | [:: A & Delta] => Inter A (intersect Delta)
     end.
 End IntersectionTypes.
-Arguments IT [Constructor].
-Arguments Omega [Constructor].
-Arguments Ctor [Constructor].
-Arguments Arrow [Constructor].
-Arguments Prod [Constructor].
-Arguments Inter [Constructor].
+Arguments IT {Constructor}.
+Arguments Omega {Constructor}.
+Arguments Ctor {Constructor}.
+Arguments Arrow {Constructor}.
+Arguments Prod {Constructor}.
+Arguments Inter {Constructor}.
 Hint Constructors IT.
 
-Arguments isOmega [Constructor].
-Arguments arity [Constructor].
-Arguments omegaArg [Constructor].
-Arguments intersect [Constructor].
+Arguments isOmega {Constructor}.
+Arguments arity {Constructor}.
+Arguments omegaArg {Constructor}.
+Arguments intersect {Constructor}.
 
 Notation "\bigcap_ ( i <- xs ) F" :=
   (intersect (map (fun i => F) xs)) (at level 41, F at level 41, i, xs at level 50,
@@ -132,57 +129,31 @@ Proof.
   move => ? T F A Delta.
     by case: Delta.
 Qed.
-Arguments bigcap_cons [Constructor T F A Delta].
+Arguments bigcap_cons {Constructor T F A Delta}.
 
-Module Constructor.
-  Definition ctor_preorder (ctor: countType) := (ctor -> ctor -> bool)%type.
-  Definition preorder_reflexive (ctor: countType) (lessOrEqual: ctor_preorder ctor): Type :=
-    forall c, lessOrEqual c c = true.
+Definition ctor_preorder_ (ctor: countType) := (ctor -> ctor -> bool)%type.
+Definition preorder_reflexive_ (ctor: countType) (lessOrEqual: ctor_preorder_ ctor): Type :=
+  forall c, lessOrEqual c c = true.
 
-  Definition preorder_transitive (ctor: countType) (lessOrEqual: ctor_preorder ctor): Type :=
-    forall (c: ctor) (d: ctor) (e: ctor),
-      lessOrEqual c d && lessOrEqual d e ==> lessOrEqual c e.
+Definition preorder_transitive_ (ctor: countType) (lessOrEqual: ctor_preorder_ ctor): Type :=
+  forall (c: ctor) (d: ctor) (e: ctor),
+    lessOrEqual c d && lessOrEqual d e ==> lessOrEqual c e.
 
-  Record mixin_of (ctor: countType): Type :=
-    Mixin {
-        lessOrEqual : ctor_preorder ctor;
-        _: preorder_reflexive ctor lessOrEqual;
-        _: preorder_transitive ctor lessOrEqual
-      }.
-  Notation class_of := mixin_of (only parsing).
-  Section ClassDef.
-    Structure type := Pack { sort : countType; _ : class_of sort }.
-    Variables (ctor: countType) (cCtor: type).
-    Definition class := let: Pack _ c := cCtor return class_of (sort cCtor) in c.
-    Definition pack c := @Pack ctor c.
-    Definition clone c & phant_id class c := Pack ctor c.
-  End ClassDef.
-  Module Exports.
-    Coercion sort : type >-> countType.
-    Notation ctor := type.
-    Notation CtorMixin := Mixin.
-    Notation CtorType C m := (@pack C m).
-    Notation "[ 'ctorMixin' 'of' ctor ]" :=
-      (class _ : mixin_of ctor) (at level 0, format "[ 'ctorMixin' 'of' ctor ]") : form_scope.
-    Notation "[ 'ctorType' 'of' ctor 'for' C ]" :=
-      (@clone ctor C _ idfun id) (at level 0, format "[ 'ctorType' 'of' ctor 'for' C ]") : form_scope.
-    Notation "[ 'ctorType' 'of' C ]" :=
-      (@clone ctor _ _ id id) (at level 0, format "[ 'ctorType' 'of' C ]") : form_scope.
-  End Exports.
-End Constructor.
-Export Constructor.Exports.
 
-Definition lessOrEqual c := Constructor.lessOrEqual _ (Constructor.class c).
-Arguments lessOrEqual [c].
+HB.mixin Record IsCtor ctor of Countable ctor := {
+  lessOrEqual : ctor_preorder_ ctor;
+  preorder_reflexive: preorder_reflexive_ ctor lessOrEqual;
+  preorder_transitive: preorder_transitive_ ctor lessOrEqual
+}.
+
+#[short(type="ctor")]
+HB.structure Definition Ctorx := { t of IsCtor t & }.
+
 Notation "[ 'ctor' c <= d ]" := (lessOrEqual c d) (at level 0, c at next level): it_scope.
-Lemma preorder_reflexive c: Constructor.preorder_reflexive _ (@lessOrEqual c).
-Proof. by case c => ? []. Qed.
-Arguments preorder_reflexive [c].
-Lemma preorder_transitive c: Constructor.preorder_transitive _ (@lessOrEqual c).
-Proof. by case c => ? []. Qed.
-Arguments preorder_transitive [c].
+
 
 Reserved Notation "[ 'bcd' A <= B ]" (at level 0, A at next level).
+
 (** BCD Rules with Products and distributing covariant constructors. **)
 Section BCD.
   Variable Constructor: ctor.
@@ -214,17 +185,17 @@ End BCD.
 
 Arguments BCD [Constructor].
 Arguments BCD__CAx [Constructor] [a b A B].
-Arguments BCD__omega [Constructor] [A].
-Arguments BCD__CDist [Constructor] [a A1 A2].
-Arguments BCD__ArrOmega [Constructor].
-Arguments BCD__Sub [Constructor] [A1 A2 B1 B2].
-Arguments BCD__Dist [Constructor] [A B1 B2].
-Arguments BCD__Idem [Constructor] [A].
-Arguments BCD__Trans [Constructor] [A] B [C].
-Arguments BCD__Glb [Constructor] [A B1 B2].
-Arguments BCD__Lub1 [Constructor] [A B].
-Arguments BCD__Lub2 [Constructor] [A B].
-Arguments BCD__Refl [Constructor] [A].
+Arguments BCD__omega {Constructor A}.
+Arguments BCD__CDist {Constructor a A1 A2}.
+Arguments BCD__ArrOmega {Constructor}.
+Arguments BCD__Sub {Constructor A1 A2 B1 B2}.
+Arguments BCD__Dist {Constructor A B1 B2}.
+Arguments BCD__Idem {Constructor A}.
+Arguments BCD__Trans {Constructor A} B {C}.
+Arguments BCD__Glb {Constructor A B1 B2}.
+Arguments BCD__Lub1 {Constructor A B}.
+Arguments BCD__Lub2 {Constructor A B}.
+Arguments BCD__Refl {Constructor A}.
 Hint Constructors BCD.
 Notation "[ 'bcd' A <= B ]" := (BCD A B) : it_scope.
 Hint Resolve BCD__Refl.
@@ -283,29 +254,20 @@ Section SubtypeMachineInstuctions.
     Lemma pcan_Resulttree: pcancel Result2tree tree2Result.
     Proof. by case => //= []. Qed.
 
-    Definition Instruction_eqMixin := PcanEqMixin pcan_Instructiontree.
-    Canonical Instruction_eqType := EqType Instruction Instruction_eqMixin.
-    Definition Instruction_choiceMixin := PcanChoiceMixin pcan_Instructiontree.
-    Canonical Instruction_choiceType := ChoiceType Instruction Instruction_choiceMixin.
-    Definition Instruction_countMixin := PcanCountMixin pcan_Instructiontree.
-    Canonical Instruction_countType := CountType Instruction Instruction_countMixin.
-    Definition Result_eqMixin := PcanEqMixin pcan_Resulttree.
-    Canonical Result_eqType := EqType Result Result_eqMixin.
-    Definition Result_choiceMixin := PcanChoiceMixin pcan_Resulttree.
-    Canonical Result_choiceType := ChoiceType Result Result_choiceMixin.
-    Definition Result_countMixin := PcanCountMixin pcan_Resulttree.
-    Canonical Result_countType := CountType Result Result_countMixin.
+    HB.instance Definition _ := Countable.copy Instruction (pcan_type pcan_Instructiontree).
+    HB.instance Definition _ := Countable.copy Result (pcan_type pcan_Resulttree).
+
   End InstructionMathcompInstances.
 End SubtypeMachineInstuctions.
 
-Arguments Instruction [Constructor].
-Arguments LessOrEqual [Constructor].
-Arguments TgtForSrcsGte [Constructor].
+Arguments Instruction {Constructor}.
+Arguments LessOrEqual {Constructor}.
+Arguments TgtForSrcsGte {Constructor}.
 Hint Constructors Instruction.
 
-Arguments Result [Constructor].
-Arguments Return [Constructor].
-Arguments CheckTgt [Constructor].
+Arguments Result {Constructor}.
+Arguments Return {Constructor}.
+Arguments CheckTgt {Constructor}.
 Hint Constructors Result.
 
 Notation "[ 'subty' A 'of' B ]" := (LessOrEqual (A, B)) (at level 0): it_scope.
@@ -395,19 +357,19 @@ Section SubtypeMachine.
   where "p1 ~~> p2" := (Semantics p1 p2).
 End SubtypeMachine.
 
-Arguments Semantics [Constructor].
-Arguments step__Omega [Constructor A].
-Arguments step__Ctor [Constructor A b B r].
-Arguments step__Arr [Constructor A B1 B2 Delta r].
-Arguments step__chooseTgt [Constructor B A Delta Delta' r].
-Arguments step__doneTgt [Constructor B].
-Arguments step__Prod [Constructor A B1 B2 r1 r2].
-Arguments step__Inter [Constructor A B1 B2 r1 r2].
+Arguments Semantics {Constructor}.
+Arguments step__Omega {Constructor A}.
+Arguments step__Ctor {Constructor A b B r}.
+Arguments step__Arr {Constructor A B1 B2 Delta r}.
+Arguments step__chooseTgt {Constructor B A Delta Delta' r}.
+Arguments step__doneTgt {Constructor B}.
+Arguments step__Prod {Constructor A B1 B2 r1 r2}.
+Arguments step__Inter {Constructor A B1 B2 r1 r2}.
 Hint Constructors Semantics.
 Notation "p1 ~~> p2" := (Semantics p1 p2).
 
-Arguments slow_cast [Constructor].
-Arguments cast [Constructor].
+Arguments slow_cast {Constructor}.
+Arguments cast {Constructor}.
 
 Section SubtypeMachineSpec.
   Variable Constructor: ctor.
@@ -510,13 +472,13 @@ Section SubtypeMachineSpec.
       Domain [subty A of B1] ->
       Domain [subty A of B2] ->
       Domain [subty A of B1 \cap B2].
-  Arguments dom__Omega [A].
-  Arguments dom__Ctor [A b B].
-  Arguments dom__Arr [A B1 B2].
-  Arguments dom__chooseTgt [B A Delta].
-  Arguments dom__doneTgt [B].
-  Arguments dom__Prod [A B1 B2].
-  Arguments dom__Inter [A B1 B2].
+  Arguments dom__Omega {A}.
+  Arguments dom__Ctor {A b B}.
+  Arguments dom__Arr {A B1 B2}.
+  Arguments dom__chooseTgt {B A Delta}.
+  Arguments dom__doneTgt {B}.
+  Arguments dom__Prod {A B1 B2}.
+  Arguments dom__Inter {A B1 B2}.
   Hint Constructors Domain.
 
   (** The subtype machine is total, forall p, Domain p \/ exists b, p = Return b **)
@@ -978,7 +940,7 @@ Section SubtypeMachineSpec.
       move: p__eq.
       case: ok => //.
         by move => ? ? ? ? [] -> -> ->.
-    Qed.
+    Defined.
 
     Let inv_dom__Arr1 {A B1 B2: @IT Constructor} (ok: Domain [ subty A of B1 -> B2]):
       Domain [ tgt_for_srcs_gte B1 in cast (B1 -> B2) A].
@@ -988,7 +950,7 @@ Section SubtypeMachineSpec.
       move: p__eq.
       case: ok => //.
         by move => ? ? ? ? ? [] -> [] -> ->.
-    Qed.
+    Defined.
 
     Let inv_dom__Arr2 {A B1 B2: @IT Constructor} {Delta: seq (@IT Constructor)} (ok: Domain [ subty A of B1 -> B2]): 
       [ tgt_for_srcs_gte B1 in cast (B1 -> B2) A] ~~> [ check_tgt Delta] ->
@@ -999,7 +961,7 @@ Section SubtypeMachineSpec.
       move: p1__eq.
       case: p1 / prf => // A'' B1' B2' prf' IH [] -> [] -> -> prf.
         by apply: IH.
-    Qed.
+    Defined.
 
     Let inv_dom__Prod1 {A B1 B2: @IT Constructor} (ok: Domain [ subty A of B1 \times B2]):
       Domain [ subty (\bigcap_(A__i <- cast (B1 \times B2) A) A__i.1) of B1].
@@ -1008,7 +970,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ subty A of B1 \times B2] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> [] -> ->.
-    Qed.
+    Defined.
 
     Let inv_dom__Prod2 {A B1 B2: @IT Constructor} (ok: Domain [ subty A of B1 \times B2]):
       Domain [ subty (\bigcap_(A__i <- (cast (B1 \times B2) A)) A__i.2) of B2].
@@ -1017,7 +979,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ subty A of B1 \times B2] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> [] -> ->.
-    Qed.
+    Defined.
 
     Let inv_dom__Inter1 {A B1 B2: @IT Constructor} (ok: Domain [ subty A of B1 \cap B2]):
       Domain [ subty A of B1].
@@ -1026,7 +988,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ subty A of B1 \cap B2] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> [] ->.
-    Qed.
+    Defined.
 
     Let inv_dom__Inter2 {A B1 B2: @IT Constructor} (ok: Domain [ subty A of B1 \cap B2]):
       Domain [ subty A of B2].
@@ -1035,7 +997,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ subty A of B1 \cap B2] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> [] _ ->.
-    Qed.
+    Defined.
 
     Let inv_dom__chooseTgt1 {B: @IT Constructor} {A: IT*IT} {Delta: seq (IT*IT)} (ok: Domain [tgt_for_srcs_gte B in [:: A & Delta ]]):
       Domain [subty B of A.1].
@@ -1044,7 +1006,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ tgt_for_srcs_gte B in A :: Delta] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> ->.
-    Qed.
+    Defined.
 
     Let inv_dom__chooseTgt2 {B: @IT Constructor} {A: IT*IT} {Delta: seq (IT*IT)} (ok: Domain [tgt_for_srcs_gte B in [:: A & Delta ]]):
       Domain [tgt_for_srcs_gte B in Delta].
@@ -1053,7 +1015,7 @@ Section SubtypeMachineSpec.
       move p1__eq: [ tgt_for_srcs_gte B in A :: Delta] => p1 ok.
       move: p1__eq.
         by case: p1 / ok => // ? ? ? ? ? [] -> _ ->.
-    Qed.
+    Defined.
 
     Let subtyp_return_value (r: @Result Constructor): bool :=
       match r with
@@ -3139,13 +3101,13 @@ Section SubtypeMachineSpec.
 End SubtypeMachineSpec.
 
 Require Extraction.
-Extraction Language Ocaml.
-Recursive Extraction subtype_machine.
+Extraction "sm.ml" subtype_machine.
 
+(*
 Extraction Language Haskell.
 Recursive Extraction subtype_machine.
 
-(*
+
     Variable k1 k2 k3 k4 k5 k6 k7 k8 k9 : nat.
     Variable k1_gt0: k1 > 0.
     Variable k2_gt0: k2 > 0.
